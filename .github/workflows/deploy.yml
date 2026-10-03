@@ -1,0 +1,107 @@
+name: Saylit CI and deploy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    concurrency:
+      group: saylit-checks-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Check types
+        run: npm run typecheck
+      - name: Build static site and service worker
+        run: npm run build
+      - name: Confirm deployable output
+        run: test -s out/index.html && test -s out/sw.js
+      - name: Validate Cloudflare deployment config
+        run: npm run deploy:check
+
+  deploy:
+    name: Deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    concurrency:
+      group: saylit-production
+      cancel-in-progress: false
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Build production assets
+        run: npm run build
+      - name: Confirm deployable output
+        run: test -s out/index.html && test -s out/sw.js
+      # A slow build must not publish a commit that main has already superseded.
+      - name: Check release is still current
+        id: release
+        shell: bash
+        run: |
+          current=$(git ls-remote origin refs/heads/main | cut -f1)
+          test -n "$current"
+          if [ "$current" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping superseded release $GITHUB_SHA"
+          fi
+      - name: Require deployment credentials
+        if: steps.release.outputs.current == 'true'
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCOUNT" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN secret and CLOUDFLARE_ACCOUNT_ID variable in repository Actions settings."
+            exit 1
+          fi
+      - name: Deploy to Cloudflare Workers
+        if: steps.release.outputs.current == 'true'
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4.147.0
+          command: deploy
+      - name: Verify production HTTPS
+        if: steps.release.outputs.current == 'true'
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors https://saylit.agentclub.dev/ -o /tmp/saylit.html
+          grep -q '简言 Saylit' /tmp/saylit.html
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 --retry-all-errors https://saylit.agentclub.dev/manifest.webmanifest -o /tmp/saylit-manifest.json
+          node -e "if (require('/tmp/saylit-manifest.json').name !== '简言 Saylit') process.exit(1)"
+          curl --fail --silent --show-error https://saylit.agentclub.dev/sw.js -o /tmp/saylit-sw.js
+          test -s /tmp/saylit-sw.js
