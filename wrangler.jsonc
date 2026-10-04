@@ -8,5 +8,11 @@
     "directory": "./out",
     "not_found_handling": "404-page"
   },
-  "routes": [{ "pattern": "saylit.agentclub.dev", "custom_domain": true }]
+  "routes": [
+    {
+      "pattern": "saylit.agentclub.dev",
+      "custom_domain": true
+    }
+  ],
+  "account_id": "2a8fb2ca3ccf832c716811fe003efbf7"
 }

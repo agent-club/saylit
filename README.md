@@ -41,6 +41,6 @@ Cloudflare Workers 托管 Next.js 静态产物 `out/`；域名和资源目录由
 
 GitHub Flow：功能分支提交 PR，测试、类型检查、构建和部署预检通过后合并到 `main`，GitHub Actions 自动发布。PR 不使用生产令牌；检查失败不会发布。生产部署串行执行，发布前跳过已经落后于 `main` 的提交。
 
-仓库 Actions Secrets 设置 `CLOUDFLARE_API_TOKEN`，Actions Variables 设置 `CLOUDFLARE_ACCOUNT_ID`。令牌仅授权目标账户的 Workers Scripts 编辑，以及 `agentclub.dev` 的 Zone 读取和 Workers Routes 编辑。不要将令牌提交到代码。首次绑定前确认子域名没有被其他服务占用。
+仓库 Actions Secrets 设置 `CLOUDFLARE_API_TOKEN`；目标账户 ID 在 `wrangler.jsonc` 中管理。令牌仅授权目标账户的 Workers Scripts 编辑，以及 `agentclub.dev` 的 Zone 读取。不要将令牌提交到代码。首次绑定前确认子域名没有被其他服务占用。
 
 回滚：revert 引入问题的 PR，检查通过并合并到 `main` 后自动发布恢复版本。
