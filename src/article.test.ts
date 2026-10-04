@@ -101,6 +101,7 @@ describe('publishing output',()=>{
     const injected=buildArticle('<p data-inkflow-decoration="true">不能隐藏的正文</p>',themes[0],settings);
     expect(toPlainText(injected)).toBe('不能隐藏的正文');
   });
+  // This renders 216 theme/color combinations; shared CI runners exceed Vitest's 5s default.
   it('keeps reading colors legible with pale custom colors and retains their artwork hue',()=>{
     const accents=['#ffffff','#ffff00','#f8c8dc','#88ddff','#111111'];
     const hex=(rgb:string)=>'#'+rgb.match(/\d+/g)!.slice(0,3).map(value=>Number(value).toString(16).padStart(2,'0')).join('');
@@ -129,7 +130,7 @@ describe('publishing output',()=>{
         });
       }
     }
-  });
+  },15000);
   it('keeps spacing adjustments distinct after constraining theme rhythm for phone reading',()=>{
     const theme=themes.find(t=>t.id==='editorial-wine')!;
     const lineHeights=[.9,1,1.12].map(density=>{
