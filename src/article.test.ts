@@ -79,16 +79,58 @@ describe('publishing output',()=>{
       expect(toPlainText(html).match(/01/g),theme.id).toHaveLength(1);
     }
   });
-  it('embeds theme artwork in exported backgrounds without treating it as an author image',()=>{
-    for(const id of ['floral-notes','orbit-letter','ribbon-letter','sea-salt','weekend-blue','sunny-kitchen']){
-      const source='# 真实标题\n\n真实导语\n\n## 章节\n\n正文';
-      const html=buildArticle(source,themes.find(t=>t.id===id)!,settings);
+  it('exports only trusted path artwork for every theme while retaining authored content and images',()=>{
+    const source='# **真实标题**\n\n图片导语 ![作者图片](https://example.com/author.png)\n\n## **01** / **章节强调**\n\n正文 **重点** 与 [原文链接](https://example.com/article)。\n\n> 引用 **内容**\n\n- 列表项\n\n<svg data-article-test="author" onload="alert(1)"><image href="https://example.com/untrusted.png"/><path d="M999 999h1"/></svg>';
+    for(const theme of themes){
+      const html=buildArticle(source,theme,settings);
       const doc=new DOMParser().parseFromString(htmlDocument(html,'真实标题'),'text/html');
-      expect(doc.querySelector('[data-inkflow-art]')?.getAttribute('style'),id).toContain('data:image/webp;base64,');
-      expect(doc.querySelector('img'),id).toBeNull();
-      expect(inspectArticle(html,source).some(issue=>issue.kind==='warning'),id).toBe(false);
-      expect(toPlainText(html).replace(/\s/g,''),id).toBe('真实标题真实导语章节正文');
+      const svgs=Array.from(doc.querySelectorAll('svg'));
+      expect(doc.querySelectorAll('[data-inkflow-art]:not(svg)'),theme.id).toHaveLength(0);
+      for(const svg of svgs){
+        expect(svg.namespaceURI,theme.id).toBe('http://www.w3.org/2000/svg');
+        expect(svg.querySelector('path'),theme.id).not.toBeNull();
+        expect(Array.from(svg.querySelectorAll('*')).every(element=>element.localName==='path'),theme.id).toBe(true);
+        expect(svg.querySelector('image,foreignObject,script,use,defs,feImage,[href],[id]'),theme.id).toBeNull();
+      }
+      for(const element of Array.from(doc.querySelectorAll<HTMLElement>('[style]'))){
+        expect(element.getAttribute('style'),theme.id).not.toMatch(/url\s*\(|mask(?:-image)?\s*:/i);
+      }
+      expect(html,theme.id).not.toMatch(/data:image\//i);
+      expect(doc.querySelector('svg[data-article-test],svg[onload]'),theme.id).toBeNull();
+      expect(doc.querySelector('svg path[d="M999 999h1"]'),theme.id).toBeNull();
+      const images=Array.from(doc.querySelectorAll('img'));
+      expect(images,theme.id).toHaveLength(1);
+      expect(images[0].getAttribute('src'),theme.id).toBe('https://example.com/author.png');
+      expect(images[0].getAttribute('alt'),theme.id).toBe('作者图片');
+      expect(doc.querySelector('h1 strong')?.textContent,theme.id).toBe('真实标题');
+      expect(doc.querySelector('h2')?.textContent,theme.id).toBe('01 / 章节强调');
+      expect(doc.querySelector('h2 strong')?.textContent,theme.id).toBe('01');
+      expect(doc.querySelector('a')?.getAttribute('href'),theme.id).toBe('https://example.com/article');
+      expect(toPlainText(html).replace(/\s/g,''),theme.id).toBe('真实标题图片导语01/章节强调正文重点与原文链接。引用内容列表项');
     }
+  });
+  it('exports floral decorations as self-contained SVG paths and keeps authored SVG untrusted',()=>{
+    const source='# 花笺 **标题**\n\n真实导语\n\n## **01** / **章节**\n\n正文\n\n> 引用\n\n- 一项';
+    const theme=themes.find(t=>t.id==='floral-notes')!;
+    const html=buildArticle(source,theme,settings);
+    const doc=new DOMParser().parseFromString(htmlDocument(html,'花笺'),'text/html');
+    const svgs=Array.from(doc.querySelectorAll('svg'));
+    expect(svgs.map(svg=>svg.getAttribute('data-inkflow-art'))).toEqual(['floral-header','floral-index','floral-divider','floral-sprig','floral-bullet']);
+    for(const svg of svgs){
+      expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg');
+      expect(svg.querySelector('path')).not.toBeNull();
+      expect(svg.getAttribute('data-inkflow-decoration')).toBe('true');
+      expect(svg.querySelector('image,foreignObject,script,use,defs,[href],[id]')).toBeNull();
+    }
+    expect(Array.from(doc.querySelectorAll('[style]')).filter(el=>el.getAttribute('style')?.includes('data:image')).map(el=>el.tagName)).toEqual([]);
+    expect(doc.querySelector('img')).toBeNull();
+    expect(doc.querySelector('h1 strong')?.textContent).toBe('标题');
+    expect(doc.querySelector('[data-inkflow-number] strong')?.textContent).toBe('01');
+    expect(toPlainText(html).replace(/\s/g,'')).toBe('花笺标题真实导语01/章节正文引用一项');
+    const injected=buildArticle('<svg onload="alert(1)"><image href="https://example.com/untrusted.png"/><foreignObject><p>恶意</p></foreignObject></svg><p>安全正文</p>',theme,settings);
+    const safe=new DOMParser().parseFromString(injected,'text/html');
+    expect(safe.querySelector('svg,[onload],foreignObject,image')).toBeNull();
+    expect(toPlainText(injected)).toContain('安全正文');
   });
   it('keeps the user spacing choice effective in both cover leads and chapter text',()=>{
     for(const theme of themes){
@@ -140,7 +182,7 @@ describe('publishing output',()=>{
       expect(doc.querySelector('[data-inkflow-content] a')?.getAttribute('href'),id).toBe('https://example.com/detail');
       expect(toPlainText(html).replace(/\s/g,''),id).toBe(expected);
       expect(doc.querySelector('[data-inkflow-content] img'),id).not.toBeNull();
-      expect(doc.querySelector('style,script,svg,[class]'),id).toBeNull();
+      expect(doc.querySelector('style,script,[class]'),id).toBeNull();
     }
   });
   it('exports structural surfaces inline and excludes trusted decorative labels from plain text',()=>{

@@ -1,6 +1,7 @@
 import type { Theme } from './themes';
 import { articlePalette } from './article-colors';
-import { themeArt, type ThemeArt } from './theme-art';
+import { createThemeArt, type ThemeArt } from './theme-art';
+import { clearArtStyle, embedArtBackground } from './svg-background';
 
 export const layoutNames: Record<Theme['layout'], string> = {
   plain: '留白长文', poster: '双色专题', press: '人文报刊', dossier: '品牌报告',
@@ -31,11 +32,11 @@ function decoration(text: string, style: string): HTMLElement {
   return element;
 }
 function artStyle(key: ThemeArt, size = '100% 100%', position = 'center'): string {
-  return `background-image:url("${themeArt[key]}");background-repeat:no-repeat;background-size:${size};background-position:${position};`;
+  return `--inkflow-art:${key};--inkflow-art-size:${size};--inkflow-art-position:${position};`;
 }
-function artwork(key: ThemeArt, style: string): HTMLElement {
-  const element = decoration('', `display:block;${style}${artStyle(key, '100% 100%')}`);
-  element.setAttribute('data-inkflow-art', key);
+function artwork(key: ThemeArt, style: string): SVGSVGElement {
+  const element = createThemeArt(key,style.match(/(?:^|;)width:([^;]+)/)?.[1]??'100%',Number(style.match(/(?:^|;)height:([\d.]+)px/)?.[1]??1));
+  element.style.cssText = `display:block;${style}`;
   return element;
 }
 
@@ -230,11 +231,9 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     }
     if (theme.id === 'ribbon-letter') cover.style.backgroundColor = colors.tint;
     if (theme.id === 'orbit-letter') {
-      // Reuse the illustration's alpha edge so the navy backing does not create a second bottom arc.
-      cover.style.maskImage = `url("${themeArt['orbit-header']}")`;
-      cover.style.maskSize = '100% 100%';
-      cover.style.maskRepeat = 'no-repeat';
-      cover.style.borderRadius = '0';
+      // Keep the curved cover edge without a mask URL that would still require image publishing.
+      cover.style.borderRadius = '0 0 50% 50% / 0 0 18% 18%';
+      cover.style.overflow = 'hidden';
       cover.style.padding = '36px 30px 38px';
     }
     if (design.art) {
@@ -245,13 +244,7 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     if (theme.id === 'cobalt-report') {
       cover.style.backgroundImage = 'none';
       cover.style.backgroundColor = colors.tint;
-      cover.style.position = 'relative';
       cover.style.paddingRight = 'calc(28% + 12px)';
-      cover.removeAttribute('data-inkflow-art');
-      const panel = artwork('cobalt-panel','position:absolute;top:0;right:0;width:28%;height:100%;');
-      panel.style.backgroundSize = '250% auto';
-      panel.style.backgroundPosition = 'center bottom';
-      cover.prepend(panel);
     }
     if (['orbit-letter','circuit-black','executive-navy','sunny-kitchen','weekend-blue'].includes(theme.id)) {
       cover.style.margin = `-20px -${design.inset}px 0`;
@@ -268,8 +261,7 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     if (theme.id === 'executive-navy') title.style.maxWidth = '84%';
     if (theme.id === 'floral-notes') {
       // The title owns the illustrated frame, so longer headings expand the frame instead of escaping it.
-      cover.style.backgroundImage = 'none';
-      cover.removeAttribute('data-inkflow-art');
+      clearArtStyle(cover);
       cover.style.padding = '0 0 20px';
       title.style.cssText += artStyle('floral-header');
       title.setAttribute('data-inkflow-art','floral-header');
@@ -302,7 +294,7 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     const hero = theme.id === 'copper-ribbon' ? 'copper-photo' : design.hero;
     if (hero) {
       const image = artwork(hero, `height:${size * 8}px;margin-top:22px;`);
-      image.style.backgroundSize = 'cover';
+      image.setAttribute('preserveAspectRatio','xMidYMid slice');
       cover.append(image);
     }
   }
@@ -495,5 +487,49 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
       table.style.margin = '0';
       table.style.border = '0';
     }
+  });
+  if (theme.id === 'floral-notes') {
+    const overlay = (host: HTMLElement, key: ThemeArt, height: number, padding: string) => {
+      const text = document.createElement('span');
+      text.style.cssText = `display:block;box-sizing:border-box;min-height:${height}px;padding:${padding};`;
+      text.append(...Array.from(host.childNodes));
+      const svg = createThemeArt(key,'100%',height);
+      // Normal-flow overlap avoids positioned backgrounds and keeps live text out of SVG/foreignObject.
+      svg.style.cssText = `display:block;width:100%;height:${height}px;margin-bottom:-${height}px;`;
+      clearArtStyle(host);
+      host.style.display = 'block';
+      host.style.padding = '0';
+      host.append(svg,text);
+    };
+    if (title) overlay(title,'floral-header',Math.max(120,size * design.scale * 1.45 * 2 + 52),'26px 18px 26px 44px');
+    chapters.forEach(chapter => {
+      const heading = chapter.querySelector<HTMLElement>('h2')!;
+      const number = heading.querySelector<HTMLElement>('[data-inkflow-number]')!;
+      number.style.width = '98px';
+      overlay(number,'floral-index',size * 1.7 * 1.3 + 24,'12px');
+      clearArtStyle(heading);
+      heading.style.paddingBottom = '0';
+      const divider = createThemeArt('floral-divider','100%',16);
+      divider.style.cssText = 'display:block;width:100%;height:16px;margin-top:18px;';
+      heading.append(divider);
+    });
+    article.querySelectorAll<HTMLElement>('blockquote').forEach(quote => {
+      quote.style.background = colors.surface;
+      clearArtStyle(quote);
+      const sprig = createThemeArt('floral-sprig','38',76);
+      sprig.style.cssText = 'display:block;float:right;width:38px;height:76px;margin:-16px -38px 0 8px;';
+      quote.prepend(sprig);
+    });
+    article.querySelectorAll<HTMLElement>('ul > li').forEach(item => {
+      clearArtStyle(item);
+      const bullet = createThemeArt('floral-bullet','14',14);
+      bullet.style.cssText = 'display:inline-block;width:14px;height:14px;vertical-align:middle;margin-left:-26px;margin-right:12px;';
+      item.prepend(bullet);
+    });
+  }
+  article.querySelectorAll<HTMLElement>('[style]').forEach(host => {
+    const key = host.style.getPropertyValue('--inkflow-art').trim() as ThemeArt;
+    if (!key) return;
+    embedArtBackground(host,key,host.style.getPropertyValue('--inkflow-art-size').trim(),host.style.getPropertyValue('--inkflow-art-position').trim());
   });
 }
