@@ -44,6 +44,61 @@ describe('publishing output',()=>{
     expect(docs.every(doc=>doc.querySelector('style')===null)).toBe(true);
     expect(docs.every(doc=>doc.querySelectorAll('[class]').length===0)).toBe(true);
   });
+  it('keeps the six compositions in each category distinct even without color differences',()=>{
+    const source='# 文章标题\n\n开篇导语。\n\n## 章节标题\n\n正文。\n\n> 一段引用';
+    for(const category of ['极简','技术','杂志','商务','生活','知识'] as const){
+      const compositions=themes.filter(theme=>theme.category===category).map(theme=>{
+        const doc=new DOMParser().parseFromString(buildArticle(source,theme,settings),'text/html');
+        return ['[data-inkflow-cover]','h1','[data-inkflow-chapter]','h2','blockquote']
+          .map(selector=>doc.querySelector(selector)?.getAttribute('style')||'')
+          .join('|').replace(/rgb\([^)]+\)/g,'COLOR');
+      });
+      expect(new Set(compositions).size,category).toBe(6);
+    }
+  });
+  it('keeps photo leads and their following captions in order across all designs',()=>{
+    const source='# 图片导语\n\n![作者配图](https://example.com/photo.jpg)\n\n作者写的照片说明。\n\n## 下一章节\n\n下一段正文。';
+    for(const theme of themes){
+      const doc=new DOMParser().parseFromString(buildArticle(source,theme,settings),'text/html');
+      expect(doc.querySelectorAll('img').length,theme.id).toBe(1);
+      expect(doc.querySelector('img')?.getAttribute('alt'),theme.id).toBe('作者配图');
+      const paragraphs=Array.from(doc.querySelectorAll('p'));
+      expect(paragraphs[0].querySelector('img'),theme.id).not.toBeNull();
+      expect(paragraphs[1].textContent,theme.id).toBe('作者写的照片说明。');
+      expect(paragraphs[2].textContent,theme.id).toBe('下一段正文。');
+    }
+  });
+  it('styles authored chapter numbers without losing nested markup or publishing an extra index',()=>{
+    for(const theme of themes){
+      const source='# 正文\n\n导语\n\n## **01** / **已有标题**\n\n章节正文';
+      const html=buildArticle(source,theme,settings);
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      expect(doc.querySelector('h2')?.textContent,theme.id).toBe('01 / 已有标题');
+      expect(doc.querySelector('[data-inkflow-number] strong')?.textContent,theme.id).toBe('01');
+      expect(doc.querySelector('[data-inkflow-heading-label] strong')?.textContent,theme.id).toBe('已有标题');
+      expect(toPlainText(html).match(/01/g),theme.id).toHaveLength(1);
+    }
+  });
+  it('embeds theme artwork in exported backgrounds without treating it as an author image',()=>{
+    for(const id of ['floral-notes','orbit-letter','ribbon-letter','sea-salt','weekend-blue','sunny-kitchen']){
+      const source='# 真实标题\n\n真实导语\n\n## 章节\n\n正文';
+      const html=buildArticle(source,themes.find(t=>t.id===id)!,settings);
+      const doc=new DOMParser().parseFromString(htmlDocument(html,'真实标题'),'text/html');
+      expect(doc.querySelector('[data-inkflow-art]')?.getAttribute('style'),id).toContain('data:image/webp;base64,');
+      expect(doc.querySelector('img'),id).toBeNull();
+      expect(inspectArticle(html,source).some(issue=>issue.kind==='warning'),id).toBe(false);
+      expect(toPlainText(html).replace(/\s/g,''),id).toBe('真实标题真实导语章节正文');
+    }
+  });
+  it('keeps the user spacing choice effective in both cover leads and chapter text',()=>{
+    for(const theme of themes){
+      const heights=[.9,1,1.12].map(density=>{
+        const doc=new DOMParser().parseFromString(buildArticle('# 题头\n\n开篇导语\n\n## 章节\n\n章节正文',theme,{...settings,density}),'text/html');
+        return Array.from(doc.querySelectorAll<HTMLElement>('p')).map(p=>p.style.lineHeight);
+      });
+      for(const position of [0,1]) expect(new Set(heights.map(row=>row[position])).size,`${theme.id} paragraph ${position}`).toBe(3);
+    }
+  });
   it('keeps six visibly distinct layout combinations within each category',()=>{
     for(const category of ['极简','技术','杂志','商务','生活','知识'] as const){
       const family=themes.filter(theme=>theme.category===category);
