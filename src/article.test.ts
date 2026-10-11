@@ -149,7 +149,8 @@ describe('publishing output',()=>{
       expect(layouts.size).toBe(6);
     }
   });
-  it('preserves content order across composed pages, multiple titles and nested headings',()=>{
+  // Each theme gets its own timeout budget; rendering all SVG layouts together exceeds 5s on CI.
+  it.each(themes)('preserves content order across composed pages, multiple titles and nested headings ($id)',theme=>{
     const sources=[
       '# 标题 **重点**\n\n开篇 [链接](https://example.com) 与 `代码`。\n\n## 01 / 原有编号\n\n正文一\n\n> ## 引用内标题\n>\n> 引用正文\n\n- 第一项\n  - 子项目\n\n## 后一章节\n\n正文二\n\n# 另一标题\n\n末尾',
       '开篇无标题\n\n## 一个章节\n\n```js\nconst x = "<test>";\n```\n\n| A | B |\n|---|---|\n| 一 | 二 |\n\n尾声',
@@ -160,13 +161,11 @@ describe('publishing output',()=>{
     const normalize=(text:string)=>text.replace(/\s+/g,'');
     for(const source of sources){
       const baseline=normalize(toPlainText(buildArticle(source,themes[0],settings)));
-      for(const theme of themes){
-        const html=buildArticle(source,theme,settings);
-        expect(normalize(toPlainText(html)),theme.id).toBe(baseline);
-        const doc=new DOMParser().parseFromString(html,'text/html');
-        expect(doc.querySelectorAll('blockquote h2').length).toBe(source.includes('引用内标题')?1:0);
-        expect(doc.querySelectorAll('[data-inkflow-chapter] > h2').length).toBe(theme.layout==='plain'?0:(source.includes('后一章节')?2:source.includes('一个章节')?1:0));
-      }
+      const html=buildArticle(source,theme,settings);
+      expect(normalize(toPlainText(html)),theme.id).toBe(baseline);
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      expect(doc.querySelectorAll('blockquote h2').length).toBe(source.includes('引用内标题')?1:0);
+      expect(doc.querySelectorAll('[data-inkflow-chapter] > h2').length).toBe(theme.layout==='plain'?0:(source.includes('后一章节')?2:source.includes('一个章节')?1:0));
     }
   });
   it('keeps illustrated headings and photo captions intact without publishing decorative text',()=>{
