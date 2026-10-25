@@ -132,6 +132,40 @@ describe('publishing output',()=>{
     expect(safe.querySelector('svg,[onload],foreignObject,image')).toBeNull();
     expect(toPlainText(injected)).toContain('安全正文');
   });
+  it('keeps artwork independent of removable positioning and live text outside zero-height layers',()=>{
+    const source='# **文章标题**\n\n开篇导语\n\n## **01** / **章节标题**\n\n> 引用正文\n>\n> 第二段引用\n\n- 列表 **重点**\n  - 子项目\n- 第二项\n\n![作者图片](https://example.com/photo.jpg)\n\n照片说明';
+    for(const theme of themes){
+      const doc=new DOMParser().parseFromString(buildArticle(source,theme,settings),'text/html');
+      const elements=Array.from(doc.querySelectorAll<HTMLElement>('[style]'));
+      const layers=Array.from(doc.querySelectorAll('svg')).map(svg=>svg.parentElement!)
+        .filter(layer=>layer.getAttribute('aria-hidden')==='true');
+      for(const layer of layers){
+        expect(layer.textContent,theme.id).toBe('');
+        expect(layer.style.height,theme.id).toBe('0px');
+        expect(layer.style.transform,theme.id).toBe('');
+        expect(layer.style.marginLeft,theme.id).toBe('');
+        const svg=layer.querySelector('svg')!;
+        expect(Number(svg.getAttribute('viewBox')!.split(' ')[3]),theme.id).toBeGreaterThan(1);
+        expect(svg.style.height,theme.id).not.toBe('100%');
+        const content=Array.from(layer.parentElement!.children).find(el=>el!==layer) as HTMLElement;
+        expect(content.textContent,theme.id).not.toBe('');
+        expect(content.style.height,theme.id).toBe('');
+      }
+      const content=toPlainText(doc.body.innerHTML);
+      for(const element of elements){
+        for(const property of Array.from(element.style)){
+          const value=element.style.getPropertyValue(property);
+          const removable=['transform','position','z-index'].includes(property)||value.includes('calc(')||(property.startsWith('margin')&&/(^|\s)-[\d.]/.test(value));
+          expect(removable,`${theme.id}: ${element.tagName} ${property}: ${value}`).toBe(false);
+          if(removable)element.style.removeProperty(property);
+        }
+      }
+      const saved=new DOMParser().parseFromString(doc.body.innerHTML,'text/html');
+      expect(toPlainText(saved.body.innerHTML),theme.id).toBe(content);
+      expect(saved.querySelector('img')?.getAttribute('src'),theme.id).toBe('https://example.com/photo.jpg');
+      expect(saved.querySelector('span > h1,span > p,span > section'),theme.id).toBeNull();
+    }
+  });
   it('keeps the user spacing choice effective in both cover leads and chapter text',()=>{
     for(const theme of themes){
       const heights=[.9,1,1.12].map(density=>{

@@ -225,10 +225,6 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
       cover.style.borderBottom = `1px solid ${colors.accentText}`;
       cover.style.padding = '26px 8px 20px';
     }
-    if (theme.id === 'executive-navy') {
-      cover.style.position = 'relative';
-      cover.append(decoration('', `position:absolute;top:34px;bottom:34px;right:18px;width:12%;border-left:1px solid ${colors.support};`));
-    }
     if (theme.id === 'ribbon-letter') cover.style.backgroundColor = colors.tint;
     if (theme.id === 'orbit-letter') {
       // Keep the curved cover edge without a mask URL that would still require image publishing.
@@ -244,10 +240,7 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     if (theme.id === 'cobalt-report') {
       cover.style.backgroundImage = 'none';
       cover.style.backgroundColor = colors.tint;
-      cover.style.paddingRight = 'calc(28% + 12px)';
-    }
-    if (['orbit-letter','circuit-black','executive-navy','sunny-kitchen','weekend-blue'].includes(theme.id)) {
-      cover.style.margin = `-20px -${design.inset}px 0`;
+      cover.style.paddingRight = '28%';
     }
     if (design.banner) cover.prepend(artwork(design.banner, 'height:110px;margin-bottom:20px;'));
     title.style.cssText = `box-sizing:border-box;font-size:${Math.min(42,size * design.scale)}px;font-weight:700;line-height:1.45;letter-spacing:.5px;color:${colors.accentText};margin:0 0 18px;padding:0;border:0;text-align:${design.centered ? 'center' : 'left'};font-family:${design.serif ? serif : '"PingFang SC","Microsoft YaHei",sans-serif'};${design.title ?? ''}`;
@@ -257,8 +250,10 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
       title.style.fontWeight = '850';
     }
     if (theme.id === 'study-index') title.style.fontSize = `${size * 1.65}px`;
-    if (theme.id === 'cobalt-report') title.style.maxWidth = '100%';
-    if (theme.id === 'executive-navy') title.style.maxWidth = '84%';
+    if (theme.id === 'cobalt-report') {
+      title.style.maxWidth = '100%';
+      title.style.paddingRight = '12px';
+    }
     if (theme.id === 'floral-notes') {
       // The title owns the illustrated frame, so longer headings expand the frame instead of escaping it.
       clearArtStyle(cover);
@@ -284,8 +279,11 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
       lead.style.color = colors.ink;
       lead.style.cssText += `text-align:${design.centered ? 'center' : 'left'};${design.lead ?? ''}`;
       if (theme.id === 'learning-lilac') lead.style.maxWidth = '80%';
-      if (theme.id === 'executive-navy') lead.style.maxWidth = '84%';
-      if (theme.id === 'cobalt-report') lead.style.maxWidth = '100%';
+      if (theme.id === 'cobalt-report') {
+        lead.style.maxWidth = '100%';
+        lead.style.boxSizing = 'border-box';
+        lead.style.paddingRight = '12px';
+      }
     }
     if (design.dark) {
       cover.querySelectorAll<HTMLElement>('h1,p,strong,em,a,code').forEach(el => { el.style.color = '#ffffff'; if (el.tagName === 'CODE') el.style.background = 'transparent'; });
@@ -296,6 +294,13 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
       const image = artwork(hero, `height:${size * 8}px;margin-top:22px;`);
       image.setAttribute('preserveAspectRatio','xMidYMid slice');
       cover.append(image);
+    }
+    if (theme.id === 'executive-navy') {
+      const content = document.createElement('section');
+      content.style.cssText = 'flex:0 0 84%;min-width:0;';
+      content.append(...Array.from(cover.childNodes));
+      cover.style.display = 'flex';
+      cover.append(content,decoration('', `display:block;flex:1;margin-left:4%;border-left:1px solid ${colors.support};`));
     }
   }
   const packContent = (group: HTMLElement, after?: HTMLElement) => {
@@ -310,6 +315,14 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     content.append(...nodes);
   };
   if (design.content) packContent(intro, title ? cover : undefined);
+  const fullBleed = title && ['orbit-letter','circuit-black','executive-navy','sunny-kitchen','weekend-blue'].includes(theme.id);
+  if (fullBleed) {
+    // Put the inset on the body, keeping the cover full-width without removable negative margins.
+    article.style.padding = '0 0 20px';
+    packContent(intro,cover);
+    const content = cover.nextElementSibling as HTMLElement | null;
+    if (content) content.style.padding = `0 ${design.inset}px`;
+  }
 
   const styleHeading = (heading: HTMLElement, index: number) => {
     heading.style.cssText = `box-sizing:border-box;max-width:100%;font-size:${size * 1.18}px;font-weight:700;line-height:1.65;letter-spacing:.3px;color:${colors.accentText};margin:0 0 22px;padding:0;border:0;font-family:${serif};${design.heading ?? ''}`;
@@ -368,6 +381,10 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
   }
   chapters.forEach((chapter, index) => {
     chapter.style.cssText = `box-sizing:border-box;margin:34px 0 0;padding:0;${design.chapter ?? ''}`;
+    if (fullBleed) {
+      chapter.style.marginLeft = `${design.inset}px`;
+      chapter.style.marginRight = `${design.inset}px`;
+    }
     const heading = Array.from(chapter.children).find(el => el.tagName === 'H2') as HTMLElement;
     styleHeading(heading, index);
     if (design.content) packContent(chapter, heading);
@@ -458,9 +475,11 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
       item.append(text);
       item.style.color = ['orbit-letter','mono-violet','learning-lilac'].includes(theme.id) ? colors.line : colors.accentText;
       if (list.tagName === 'UL' && ['sunny-kitchen','study-index','reading-ribbon'].includes(theme.id)) {
-        item.style.cssText += 'list-style:none;position:relative;padding-left:25px;';
+        item.style.cssText += 'list-style:none;display:flex;align-items:flex-start;gap:6px;';
+        text.style.flex = '1';
+        text.style.minWidth = '0';
         const filled = theme.id !== 'reading-ribbon';
-        const marker = decoration(String(index + 1), `position:absolute;left:0;top:5px;width:17px;height:17px;line-height:17px;text-align:center;font:12px/17px Georgia,serif;border-radius:${theme.id === 'study-index' ? 0 : '50%'};border:1px solid ${theme.id === 'study-index' ? accent : colors.support};background:${filled ? theme.id === 'study-index' ? accent : colors.support : colors.paper};color:${theme.id === 'study-index' ? colors.onAccent : colors.ink};`);
+        const marker = decoration(String(index + 1), `display:block;flex-shrink:0;margin-top:5px;width:17px;height:17px;line-height:17px;text-align:center;font:12px/17px Georgia,serif;border-radius:${theme.id === 'study-index' ? 0 : '50%'};border:1px solid ${theme.id === 'study-index' ? accent : colors.support};background:${filled ? theme.id === 'study-index' ? accent : colors.support : colors.paper};color:${theme.id === 'study-index' ? colors.onAccent : colors.ink};`);
         item.prepend(marker);
       }
       if (theme.id === 'floral-notes' && list.tagName === 'UL') {
@@ -490,16 +509,9 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
   });
   if (theme.id === 'floral-notes') {
     const overlay = (host: HTMLElement, key: ThemeArt, height: number, padding: string) => {
-      const text = document.createElement('span');
-      text.style.cssText = `display:block;box-sizing:border-box;min-height:${height}px;padding:${padding};`;
-      text.append(...Array.from(host.childNodes));
-      const svg = createThemeArt(key,'100%',height);
-      // Normal-flow overlap avoids positioned backgrounds and keeps live text out of SVG/foreignObject.
-      svg.style.cssText = `display:block;width:100%;height:${height}px;margin-bottom:-${height}px;`;
-      clearArtStyle(host);
-      host.style.display = 'block';
-      host.style.padding = '0';
-      host.append(svg,text);
+      host.style.minHeight = `${height}px`;
+      host.style.padding = padding;
+      embedArtBackground(host,key,`100% ${height}px`,'center top');
     };
     if (title) overlay(title,'floral-header',Math.max(120,size * design.scale * 1.45 * 2 + 52),'26px 18px 26px 44px');
     chapters.forEach(chapter => {
@@ -515,16 +527,6 @@ export function composeArticle(article: HTMLElement, theme: Theme, size: number,
     });
     article.querySelectorAll<HTMLElement>('blockquote').forEach(quote => {
       quote.style.background = colors.surface;
-      clearArtStyle(quote);
-      const sprig = createThemeArt('floral-sprig','38',76);
-      sprig.style.cssText = 'display:block;float:right;width:38px;height:76px;margin:-16px -38px 0 8px;';
-      quote.prepend(sprig);
-    });
-    article.querySelectorAll<HTMLElement>('ul > li').forEach(item => {
-      clearArtStyle(item);
-      const bullet = createThemeArt('floral-bullet','14',14);
-      bullet.style.cssText = 'display:inline-block;width:14px;height:14px;vertical-align:middle;margin-left:-26px;margin-right:12px;';
-      item.prepend(bullet);
     });
   }
   article.querySelectorAll<HTMLElement>('[style]').forEach(host => {

@@ -46,7 +46,7 @@ npm run build
 npm run deploy:check
 ```
 
-Tests cover content preservation, theme structure, inline styles, HTML sanitization, numbering deduplication, backup validation, and snapshot merging. The deployment check runs Wrangler in dry-run mode.
+Tests cover content preservation, theme structure, inline styles, artwork layer structure and content under simulated save filtering (positioning, transforms, negative margins and `calc()` values), HTML sanitization, numbering deduplication, backup validation, and snapshot merging. The deployment check runs Wrangler in dry-run mode.
 
 ### Deployment and contributions
 
@@ -60,7 +60,7 @@ To roll back, revert the problematic pull request and merge the revert into `mai
 
 ### Limitations and data
 
-Final paste fidelity in the WeChat editor has not yet been verified. After copying, check images, tables, code blocks, and the end of the article. Upload local images in the WeChat editor. Formulas and Mermaid diagrams currently appear as source text. Word import, cloud sync, automatic WeChat publishing, and a native desktop app are not implemented.
+The decorative layer has been verified through a save in the WeChat editor. All 36 themes are checked locally against simulated save filtering; each theme still needs individual verification in WeChat. Decorative backgrounds that previously stretched to the text height now use their intrinsic proportions. After copying and saving, check images, tables, code blocks, and the end of the article. Upload local images in the WeChat editor. Formulas and Mermaid diagrams currently appear as source text. Word import, cloud sync, automatic WeChat publishing, and a native desktop app are not implemented.
 
 Clearing site data removes locally saved articles. Export workspace backups regularly. Storage errors are reported so unreadable data is not overwritten.
 
@@ -112,7 +112,7 @@ npm run build
 npm run deploy:check
 ```
 
-测试覆盖内容保留、主题结构、内联样式、HTML 安全过滤、编号判重、备份校验及快照合并。部署预检以 Wrangler dry-run 模式执行。
+测试覆盖内容保留、主题结构、内联样式、装饰层结构和模拟保存过滤（定位、位移、负边距、`calc()`）后的内容、HTML 安全过滤、编号判重、备份校验及快照合并。部署预检以 Wrangler dry-run 模式执行。
 
 ### 发布与贡献
 
@@ -126,7 +126,7 @@ npm run deploy:check
 
 ### 使用边界与数据
 
-公众号后台最终粘贴效果尚未验证。复制后请检查图片、表格、代码和文章尾部；本地图片需要在公众号后台上传。公式与 Mermaid 暂以原文显示。Word 导入、云同步、公众号自动发布和原生客户端未实现。
+装饰层已通过一次公众号后台实际保存验证，全部 36 个主题通过本地模拟保存过滤检查，尚未逐一在公众号后台验证。原先随文字高度拉伸的装饰背景改为按自身比例显示。复制并保存后请检查图片、表格、代码和文章尾部；本地图片需要在公众号后台上传。公式与 Mermaid 暂以原文显示。Word 导入、云同步、公众号自动发布和原生客户端未实现。
 
 清理网站数据会移除本地文章，请定期导出工作台备份。存储异常会提示，避免覆盖无法读取的原数据。
 
